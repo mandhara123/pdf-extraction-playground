@@ -36,7 +36,7 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
             // FINAL FIX: Using the correct arrow function property syntax inside the object
             // This satisfies both JavaScript/React and the TypeScript compiler.
             code(props: any) {
-              const { node, inline, className, children, ...rest } = props;
+              const { inline, className, children, ...rest } = props;
               
               const match = /language-(\w+)/.exec(className || '');
               

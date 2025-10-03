@@ -43,8 +43,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
         <p className="text-xl font-medium text-gray-700 dark:text-gray-300">
           {isDragActive 
             ? "Drop the PDF here..." 
-            // FINAL FIX: Ensure ALL quotes are escaped with &apos;
-            : "Drag and drop a PDF file here, or click to select file" 
+            : "Drag and drop a PDF file here, or click to select file"
           }
         </p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -56,7 +55,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
         {isLoading && (
           <div className="flex items-center justify-center space-x-2 text-blue-600 dark:text-blue-400">
             <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
-            <span>Processing '{fileName}' (Estimated 3-7s)...</span>
+            <span>Processing &apos;{fileName}&apos; (Estimated 3-7s)...</span>
           </div>
         )}
         {error && (
