@@ -3,8 +3,13 @@
 import { useState } from 'react';
 import { UploadDropzone } from './components/UploadDropzone'; 
 import { PdfWrapper } from './components/PdfWrapper';
-import { MarkdownOutput } from './components/MarkdownOutput';
+import MarkdownOutput from "./components/MarkdownOutput";
 
+import React from 'react';
+
+interface MarkdownOutputProps {
+  markdown: string;
+}
 // Required definition for page.tsx and PdfWrapper.tsx
 interface Element { 
     type: string; 
@@ -130,6 +135,7 @@ export default function Home() {
         {/* Right Pane: Extracted Markdown */}
         <div className="w-1/2 h-full">
           <MarkdownOutput markdown={results.markdown_output} />
+
         </div>
       </main>
     </div>
