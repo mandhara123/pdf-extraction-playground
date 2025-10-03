@@ -2,7 +2,7 @@
 'use client';
 import { useState } from 'react';
 import { UploadDropzone } from './components/UploadDropzone'; 
-import { PdfViewer } from './components/PdfViewer';
+import { PdfWrapper } from './components/PdfWrapper';
 import { MarkdownOutput } from './components/MarkdownOutput';
 
 // Dummy types based on backend schema
@@ -110,7 +110,7 @@ export default function Home() {
       <main className="flex flex-1 overflow-hidden">
         {/* Left Pane: PDF Viewer with Annotations */}
         <div className="w-1/2 h-full">
-          <PdfViewer 
+          <PdfWrapper 
             file={file} 
             elements={results.elements} 
             currentPage={currentPage}
