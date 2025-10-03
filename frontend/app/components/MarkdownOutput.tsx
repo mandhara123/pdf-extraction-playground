@@ -5,13 +5,7 @@ import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import React from 'react'; // Import React for React.ReactNode
 
 // Defines the properties passed by ReactMarkdown to the custom code renderer.
-interface CodeProps {
-  node?: any;
-  inline?: boolean;
-  className?: string;
-  children: React.ReactNode;
-  [key: string]: any; // Allows any extra HTML attributes
-}
+
 
 interface MarkdownOutputProps {
   markdown: string;
