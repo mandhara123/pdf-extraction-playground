@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
+import 'react-pdf/dist/umd/Page/AnnotationLayer.css';
+import 'react-pdf/dist/umd/Page/TextLayer.css';
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
