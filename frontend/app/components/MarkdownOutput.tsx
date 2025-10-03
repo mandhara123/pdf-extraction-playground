@@ -30,9 +30,12 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
       <article className="prose dark:prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            // Custom renderer for code blocks (syntax highlighting)
-            code({ node, inline, className, children, ...props }) {
+            // FIX: Using ': any' for the function arguments to satisfy TypeScript/ESLint 
+            // and correctly destructure the 'inline' property passed by ReactMarkdown.
+            code({ node, inline, className, children, ...props }: any) {
               const match = /language-(\w+)/.exec(className || '');
+              
+              // The 'inline' property must be present for the block to be rendered by the highlighter
               return !inline && match ? (
                 <SyntaxHighlighter
                   style={dark} // Use 'dark' theme for a clean look
