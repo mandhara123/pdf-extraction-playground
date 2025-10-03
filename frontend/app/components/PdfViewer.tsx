@@ -1,0 +1,97 @@
+// app/components/PdfViewer.tsx
+'use client';
+import { useState, useCallback } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+
+const COLOR_MAP: Record<string, string> = {
+  title: 'border-red-500',
+  header: 'border-blue-500',
+  paragraph: 'border-green-500',
+  table: 'border-purple-500',
+};
+
+interface Element {
+  type: string;
+  bbox: number[]; // [x_min, y_min, x_max, y_max] (0-1000 normalized)
+  page: number;
+}
+
+interface PdfViewerProps {
+  file: File;
+  elements: Element[];
+  currentPage: number;
+  onPageChange: (page: number) => void;
+}
+
+export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfViewerProps) => {
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageWidth, setPageWidth] = useState<number>(0);
+
+  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
+    setNumPages(numPages);
+    onPageChange(1); // Reset to page 1 on new document load
+  }
+
+  const handleResize = useCallback((width: number) => {
+    setPageWidth(width);
+  }, []);
+
+  const annotations = elements.filter(e => e.page === currentPage);
+
+  return (
+    <div className="relative w-full h-full overflow-auto bg-gray-100 dark:bg-gray-800">
+      <Document
+        file={file}
+        onLoadSuccess={onDocumentLoadSuccess}
+        className="mx-auto shadow-xl"
+      >
+        <div className="relative" ref={(el) => { if (el) handleResize(el.offsetWidth); }}>
+          <Page 
+            pageNumber={currentPage} 
+            renderAnnotationLayer={true} 
+            renderTextLayer={true} 
+            width={pageWidth}
+          />
+          
+          {/* Custom Bounding Box Overlays */}
+          {pageWidth > 0 && annotations.map((el, index) => {
+            // Denormalize bbox from 0-1000 to actual pixel coordinates
+            const [x_min, y_min, x_max, y_max] = el.bbox.map(c => (c * pageWidth) / 1000);
+            
+            // NOTE: In React-PDF, coordinates are relative to the top of the PDF page.
+            // The y-axis might need to be inverted (1000 - coordinate) depending on model output.
+            const height = y_max - y_min;
+            const width = x_max - x_min;
+
+            return (
+              <div
+                key={index}
+                className={`absolute border-2 opacity-50 hover:opacity-100 transition-opacity ${COLOR_MAP[el.type] || 'border-gray-500'}`}
+                style={{
+                  left: x_min,
+                  top: y_min,
+                  width: width,
+                  height: height,
+                  zIndex: 10,
+                  pointerEvents: 'none', // Prevents interfering with PDF click/select
+                }}
+                title={`Type: ${el.type}`}
+              />
+            );
+          })}
+        </div>
+      </Document>
+      
+      {/* Page Navigation Controls (Implement separately) */}
+      <div className="sticky bottom-0 bg-white p-2 flex justify-center space-x-4">
+        <button onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage <= 1}>Prev</button>
+        <span>Page {currentPage} of {numPages}</span>
+        <button onClick={() => onPageChange(Math.min(numPages || 1, currentPage + 1))} disabled={currentPage >= (numPages || 1)}>Next</button>
+      </div>
+    </div>
+  );
+};

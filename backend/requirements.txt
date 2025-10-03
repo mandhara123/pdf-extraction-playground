@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+modal
+python-multipart
+Pillow
+surya-ocr
+layoutparser[ocr]
+pdfminer.six
+torch
+torchvision
