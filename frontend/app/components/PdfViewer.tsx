@@ -1,10 +1,11 @@
-// app/components/PdfViewer.tsx
+// frontend/app/components/PdfViewer.tsx
 'use client';
 import { useState, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 
+// Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 const COLOR_MAP: Record<string, string> = {
@@ -12,6 +13,7 @@ const COLOR_MAP: Record<string, string> = {
   header: 'border-blue-500',
   paragraph: 'border-green-500',
   table: 'border-purple-500',
+  figure: 'border-yellow-500',
 };
 
 interface Element {
@@ -33,7 +35,7 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
-    onPageChange(1); // Reset to page 1 on new document load
+    onPageChange(1);
   }
 
   const handleResize = useCallback((width: number) => {
@@ -62,8 +64,6 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
             // Denormalize bbox from 0-1000 to actual pixel coordinates
             const [x_min, y_min, x_max, y_max] = el.bbox.map(c => (c * pageWidth) / 1000);
             
-            // NOTE: In React-PDF, coordinates are relative to the top of the PDF page.
-            // The y-axis might need to be inverted (1000 - coordinate) depending on model output.
             const height = y_max - y_min;
             const width = x_max - x_min;
 
@@ -77,7 +77,7 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
                   width: width,
                   height: height,
                   zIndex: 10,
-                  pointerEvents: 'none', // Prevents interfering with PDF click/select
+                  pointerEvents: 'none', 
                 }}
                 title={`Type: ${el.type}`}
               />
@@ -86,12 +86,26 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
         </div>
       </Document>
       
-      {/* Page Navigation Controls (Implement separately) */}
-      <div className="sticky bottom-0 bg-white p-2 flex justify-center space-x-4">
-        <button onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage <= 1}>Prev</button>
-        <span>Page {currentPage} of {numPages}</span>
-        <button onClick={() => onPageChange(Math.min(numPages || 1, currentPage + 1))} disabled={currentPage >= (numPages || 1)}>Next</button>
-      </div>
+      {/* Page Navigation Controls */}
+      {numPages && (
+        <div className="sticky bottom-0 bg-white dark:bg-gray-900 p-2 flex justify-center space-x-4 border-t dark:border-gray-700">
+            <button 
+                onClick={() => onPageChange(Math.max(1, currentPage - 1))} 
+                disabled={currentPage <= 1}
+                className="p-1 border rounded disabled:opacity-50"
+            >
+                Prev
+            </button>
+            <span>Page {currentPage} of {numPages}</span>
+            <button 
+                onClick={() => onPageChange(Math.min(numPages, currentPage + 1))} 
+                disabled={currentPage >= numPages}
+                className="p-1 border rounded disabled:opacity-50"
+            >
+                Next
+            </button>
+        </div>
+      )}
     </div>
   );
 };

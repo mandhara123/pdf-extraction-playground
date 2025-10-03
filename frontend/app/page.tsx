@@ -1,7 +1,7 @@
-// app/page.tsx
+// frontend/app/page.tsx
 'use client';
 import { useState } from 'react';
-import { UploadDropzone } from './components/UploadDropzone'; // Custom component for upload area
+import { UploadDropzone } from './components/UploadDropzone'; 
 import { PdfViewer } from './components/PdfViewer';
 import { MarkdownOutput } from './components/MarkdownOutput';
 
@@ -13,6 +13,9 @@ interface ExtractionResult {
     metrics: { time_s: number; elements_count: number; word_count: number; };
 }
 
+// NOTE: Use environment variable defined in .env.local and Vercel settings
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; 
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [modelId, setModelId] = useState<string>('surya');
@@ -21,10 +24,12 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
-  // NOTE: Replace with your actual Modal deployment URL
-  const API_BASE_URL = "YOUR_MODAL_API_URL/api"; 
-
   const handleFileUpload = async (uploadedFile: File) => {
+    if (!API_BASE_URL) {
+        setError("API URL not configured. Check NEXT_PUBLIC_API_BASE_URL.");
+        return;
+    }
+
     setFile(uploadedFile);
     setResults(null);
     setError(null);
@@ -42,13 +47,14 @@ export default function Home() {
 
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.detail || 'Extraction failed on the server.');
+            throw new Error(err.detail || `Extraction failed with status ${response.status}.`);
         }
 
         const data: ExtractionResult = await response.json();
         setResults(data);
 
     } catch (e: any) {
+        console.error("Fetch Error:", e);
         setError(e.message || 'An unknown error occurred during extraction.');
         setFile(null); // Clear file on failure
     } finally {
@@ -59,15 +65,24 @@ export default function Home() {
   if (!file || !results) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
-        <h1 className="text-3xl font-bold mb-6">PDF Extraction Playground</h1>
+        <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">
+            PDF Extraction Playground
+        </h1>
         
         {/* Model Selection */}
-        <div className="mb-4">
-          <label className="mr-4">Select Model:</label>
-          <select value={modelId} onChange={(e) => setModelId(e.target.value)} className="p-2 border rounded">
-            <option value="surya">Surya</option>
-            <option value="docling">Docling</option>
-            <option value="custom-ocr">Custom OCR</option>
+        <div className="mb-8 w-full max-w-2xl p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+          <label htmlFor="model-select" className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Extraction Model:
+          </label>
+          <select 
+            id="model-select"
+            value={modelId} 
+            onChange={(e) => setModelId(e.target.value)} 
+            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 dark:text-white"
+          >
+            <option value="surya">Surya (Advanced Layout & OCR)</option>
+            <option value="docling">Structural (Fast PDFMiner/Docling Simulation)</option>
+            <option value="custom-ocr">LayoutParser + Tesseract (Custom OCR Pipeline)</option>
           </select>
         </div>
 
@@ -82,8 +97,8 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       {/* Header/Metrics Bar */}
       <header className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800">
-        <h1 className="text-xl font-bold">PDF: {file.name}</h1>
-        <div className="flex space-x-4 text-sm">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">PDF: {file.name}</h1>
+        <div className="flex space-x-4 text-sm text-gray-700 dark:text-gray-300">
             <span>Model: **{modelId.toUpperCase()}**</span>
             <span>Time: {results.metrics.time_s.toFixed(2)}s</span>
             <span>Elements: {results.metrics.elements_count}</span>
