@@ -15,6 +15,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
+      // NOTE: Using window.alert for simplicity as per HTML/React guidelines
       if (file.type !== 'application/pdf') {
         alert("Please upload a PDF file.");
         return;
@@ -42,8 +43,8 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
         <p className="text-xl font-medium text-gray-700 dark:text-gray-300">
           {isDragActive 
             ? "Drop the PDF here..." 
-            // frontend/app/components/UploadDropzone.tsx (Corrected line)
-            : "Drag &apos;n&apos; drop a PDF file here, or click to select file"
+            // FINAL FIX: Use the HTML escaped entity, relying on the .eslintrc.json override
+            : "Drag &apos;n&apos; drop a PDF file here, or click to select file" 
           }
         </p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
