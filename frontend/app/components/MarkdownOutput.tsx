@@ -21,7 +21,7 @@ interface MarkdownOutputProps {
 
 const MarkdownOutput: React.FC<MarkdownOutputProps> = ({ markdown }) => {
   const components: Components = {
-    code: ({ node, inline, className, children, ...props }: CodeProps) => {
+    code: ({ inline, className, children, ...props }: CodeProps) => {
       const match = /language-(\w+)/.exec(className || "");
       return !inline && match ? (
         <SyntaxHighlighter

@@ -7,9 +7,7 @@ import MarkdownOutput from "./components/MarkdownOutput";
 
 import React from 'react';
 
-interface MarkdownOutputProps {
-  markdown: string;
-}
+
 // Required definition for page.tsx and PdfWrapper.tsx
 interface Element { 
     type: string; 
