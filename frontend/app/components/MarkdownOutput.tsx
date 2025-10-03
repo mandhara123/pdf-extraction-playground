@@ -2,6 +2,16 @@
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'; 
 import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
+import React from 'react'; // Import React for React.ReactNode
+
+// Defines the properties passed by ReactMarkdown to the custom code renderer.
+interface CodeProps {
+  node?: any;
+  inline?: boolean;
+  className?: string;
+  children: React.ReactNode;
+  [key: string]: any; // Allows any extra HTML attributes
+}
 
 interface MarkdownOutputProps {
   markdown: string;
@@ -29,24 +39,25 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
       <article className="prose dark:prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            // FINAL FIX: Use the explicit ': any' signature to solve the 'Property inline does not exist' error.
-              // Destructure the known properties from props
-              code({ inline, className, children, ...props }: any) {
+            // FINAL FIX: Using the correct arrow function property syntax inside the object
+            // This satisfies both JavaScript/React and the TypeScript compiler.
+            code(props: any) {
+              const { node, inline, className, children, ...rest } = props;
               
               const match = /language-(\w+)/.exec(className || '');
               
               return !inline && match ? (
                 <SyntaxHighlighter
-                  // @ts-ignore: Suppress TypeScript warnings on external library props
+                  // @ts-ignore: Required override for external library types
                   style={dark} 
                   language={match[1]}
                   PreTag="div"
-                  {...props} // Pass the rest of the props
+                  {...rest} // Pass the remaining HTML attributes
                 >
                   {String(children).replace(/\n$/, '')}
                 </SyntaxHighlighter>
               ) : (
-                <code className={className} {...props}>
+                <code className={className} {...rest}>
                   {children}
                 </code>
               );

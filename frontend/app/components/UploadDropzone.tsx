@@ -44,7 +44,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
           {isDragActive 
             ? "Drop the PDF here..." 
             // FINAL FIX: Ensure ALL quotes are escaped with &apos;
-            : "Drag &apos;n&apos; drop a PDF file here, or click to select file" 
+            : "Drag and drop a PDF file here, or click to select file" 
           }
         </p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
