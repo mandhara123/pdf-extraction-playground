@@ -1,11 +1,8 @@
-// frontend/app/components/MarkdownOutput.tsx
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'; 
 import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
-import React from 'react'; // Import React for React.ReactNode
-
-// Defines the properties passed by ReactMarkdown to the custom code renderer.
-
+import React from 'react'; 
+import type { ReactMarkdownProps } from 'react-markdown/lib/complex-types'; 
 
 interface MarkdownOutputProps {
   markdown: string;
@@ -33,20 +30,16 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
       <article className="prose dark:prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            // FINAL FIX: Using the correct arrow function property syntax inside the object
-            // This satisfies both JavaScript/React and the TypeScript compiler.
-            code(props: any) {
-              const { inline, className, children, ...rest } = props;
-              
+            code({ inline, className, children, ...rest }: ReactMarkdownProps) {
               const match = /language-(\w+)/.exec(className || '');
               
               return !inline && match ? (
                 <SyntaxHighlighter
-                  // @ts-ignore: Required override for external library types
+                  // @ts-expect-error: react-syntax-highlighter types don’t fully align
                   style={dark} 
                   language={match[1]}
                   PreTag="div"
-                  {...rest} // Pass the remaining HTML attributes
+                  {...rest}
                 >
                   {String(children).replace(/\n$/, '')}
                 </SyntaxHighlighter>
@@ -56,11 +49,12 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
                 </code>
               );
             },
-            // Custom renderer for tables
             table: ({ children }) => (
-                <div className="overflow-x-auto my-4">
-                    <table className="table-auto w-full border border-collapse border-gray-300 dark:border-gray-700">{children}</table>
-                </div>
+              <div className="overflow-x-auto my-4">
+                <table className="table-auto w-full border border-collapse border-gray-300 dark:border-gray-700">
+                  {children}
+                </table>
+              </div>
             )
           }}
         >
