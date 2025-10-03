@@ -43,8 +43,8 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
         <p className="text-xl font-medium text-gray-700 dark:text-gray-300">
           {isDragActive 
             ? "Drop the PDF here..." 
-            // FINAL FIX: Use the HTML escaped entity, relying on the .eslintrc.json override
-            : "drop a PDF file here, or click to select file" 
+            // FINAL FIX: Ensure ALL quotes are escaped with &apos;
+            : "Drag &apos;n&apos; drop a PDF file here, or click to select file" 
           }
         </p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">

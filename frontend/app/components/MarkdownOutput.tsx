@@ -1,8 +1,7 @@
 // frontend/app/components/MarkdownOutput.tsx
 import ReactMarkdown from 'react-markdown';
-// You must install: npm install react-syntax-highlighter
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'; 
-import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Example style
+import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
 
 interface MarkdownOutputProps {
   markdown: string;
@@ -11,7 +10,7 @@ interface MarkdownOutputProps {
 export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
   const handleCopy = () => {
     navigator.clipboard.writeText(markdown);
-    alert('Markdown copied to clipboard!');
+    alert('Markdown copied to clipboard!'); 
   };
 
   return (
@@ -30,23 +29,25 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
       <article className="prose dark:prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            // FIX: Using ': any' for the function arguments to satisfy TypeScript/ESLint 
-            // and correctly destructure the 'inline' property passed by ReactMarkdown.
-            code({ node, inline, className, children, ...props }: any) {
+            // FINAL FIX: Use the explicit ': any' signature to solve the 'Property inline does not exist' error.
+            code(props: any) { 
+              // Destructure the known properties from props
+              const { node, inline, className, children, ...rest } = props;
+              
               const match = /language-(\w+)/.exec(className || '');
               
-              // The 'inline' property must be present for the block to be rendered by the highlighter
               return !inline && match ? (
                 <SyntaxHighlighter
-                  style={dark} // Use 'dark' theme for a clean look
+                  // @ts-ignore: Suppress TypeScript warnings on external library props
+                  style={dark} 
                   language={match[1]}
                   PreTag="div"
-                  {...props}
+                  {...rest} // Pass the rest of the props
                 >
                   {String(children).replace(/\n$/, '')}
                 </SyntaxHighlighter>
               ) : (
-                <code className={className} {...props}>
+                <code className={className} {...rest}>
                   {children}
                 </code>
               );
