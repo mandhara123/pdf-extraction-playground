@@ -30,9 +30,8 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
         <ReactMarkdown
           components={{
             // FINAL FIX: Use the explicit ': any' signature to solve the 'Property inline does not exist' error.
-            code(props: any) { 
               // Destructure the known properties from props
-              const { node, inline, className, children, ...rest } = props;
+              code({ inline, className, children, ...props }: any) {
               
               const match = /language-(\w+)/.exec(className || '');
               
@@ -42,12 +41,12 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
                   style={dark} 
                   language={match[1]}
                   PreTag="div"
-                  {...rest} // Pass the rest of the props
+                  {...props} // Pass the rest of the props
                 >
                   {String(children).replace(/\n$/, '')}
                 </SyntaxHighlighter>
               ) : (
-                <code className={className} {...rest}>
+                <code className={className} {...props}>
                   {children}
                 </code>
               );
