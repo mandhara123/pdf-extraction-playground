@@ -2,8 +2,7 @@
 'use client';
 import { useState, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-// import 'react-pdf/dist/umd/Page/AnnotationLayer.css';
-// import 'react-pdf/dist/umd/Page/TextLayer.css';
+
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
