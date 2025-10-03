@@ -3,6 +3,13 @@
 import dynamic from 'next/dynamic';
 import React from 'react';
 
+// Required definition for page.tsx and PdfWrapper.tsx
+interface Element { 
+    type: string; 
+    bbox: number[]; 
+    page: number; 
+    confidence: number;
+}
 // NOTE: All problematic external CSS imports (react-pdf/dist/umd/...) 
 // MUST BE REMOVED from this file and layout.tsx to pass the Vercel build.
 // We rely on the dynamic loading (ssr: false) to prevent the failure.
@@ -20,7 +27,7 @@ const DynamicPdfViewer = dynamic(
 
 interface PdfWrapperProps {
   file: File;
-  elements: any[];
+  elements: Element[];
   currentPage: number;
   onPageChange: (page: number) => void;
 }

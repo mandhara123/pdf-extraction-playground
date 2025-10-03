@@ -5,6 +5,13 @@ import { UploadDropzone } from './components/UploadDropzone';
 import { PdfWrapper } from './components/PdfWrapper';
 import { MarkdownOutput } from './components/MarkdownOutput';
 
+// Required definition for page.tsx and PdfWrapper.tsx
+interface Element { 
+    type: string; 
+    bbox: number[]; 
+    page: number; 
+    confidence: number;
+}
 // Dummy types based on backend schema
 interface Element { type: string; bbox: number[]; page: number; }
 interface ExtractionResult {
@@ -53,13 +60,15 @@ export default function Home() {
         const data: ExtractionResult = await response.json();
         setResults(data);
 
-    } catch (e: any) {
-        console.error("Fetch Error:", e);
-        setError(e.message || 'An unknown error occurred during extraction.');
-        setFile(null); // Clear file on failure
-    } finally {
-        setIsLoading(false);
-    }
+    } catch (e: unknown) { // Change 'any' to 'unknown'
+    // Handle the error type properly
+    const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during extraction.';
+    console.error("Fetch Error:", e);
+    setError(errorMessage); // Use the cleaner error message
+    setFile(null); 
+} finally {
+    setIsLoading(false);
+}
   };
 
   if (!file || !results) {

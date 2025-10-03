@@ -42,7 +42,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onFileUpload, is
         <p className="text-xl font-medium text-gray-700 dark:text-gray-300">
           {isDragActive 
             ? "Drop the PDF here..." 
-            : "Drag 'n' drop a PDF file here, or click to select file"
+            : "Drag &apos;n&apos; drop a PDF file here, or click to select file"
           }
         </p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
