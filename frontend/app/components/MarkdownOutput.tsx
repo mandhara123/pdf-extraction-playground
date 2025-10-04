@@ -10,7 +10,7 @@ interface MarkdownOutputProps {
   markdown: string;
 }
 
-export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
+const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
   const handleCopy = () => {
     navigator.clipboard.writeText(markdown);
     alert('Markdown copied to clipboard!'); 
@@ -32,16 +32,13 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
       <article className="prose dark:prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            // FINAL FIX: We explicitly use ': any' on the arguments to satisfy the strict compiler 
-            // and remove the unused 'node' variable which was causing a separate error/warning.
-            code(props: any) { 
-              const { inline, className, children, ...rest } = props;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            code: ({ inline, className, children, ...rest }: any) => {
               
               const match = /language-(\w+)/.exec(className || '');
               
               return !inline && match ? (
                 <SyntaxHighlighter
-                  // @ts-ignore: Required override for external library types
                   style={dark} 
                   language={match[1]}
                   PreTag="div"
@@ -69,3 +66,5 @@ export const MarkdownOutput = ({ markdown }: MarkdownOutputProps) => {
     </div>
   );
 };
+
+export default MarkdownOutput;
