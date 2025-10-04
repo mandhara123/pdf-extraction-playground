@@ -4,8 +4,8 @@ import { useState, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
 
-// Set up PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Set up PDF.js worker with explicit version
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 const COLOR_MAP: Record<string, string> = {
   title: 'border-red-500',
@@ -31,10 +31,17 @@ interface PdfViewerProps {
 export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfViewerProps) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageWidth, setPageWidth] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
+    setError(null);
     onPageChange(1);
+  }
+
+  function onDocumentLoadError(error: Error) {
+    console.error('PDF load error:', error);
+    setError('Failed to load PDF file. Please ensure the file is a valid PDF.');
   }
 
   const handleResize = useCallback((width: number) => {
@@ -45,11 +52,25 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
 
   return (
     <div className="relative w-full h-full overflow-auto bg-gray-100 dark:bg-gray-800">
-      <Document
-        file={file}
-        onLoadSuccess={onDocumentLoadSuccess}
-        className="mx-auto shadow-xl"
-      >
+      {error ? (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-red-600 dark:text-red-400">
+            <p className="text-lg font-semibold mb-2">PDF Loading Error</p>
+            <p className="text-sm">{error}</p>
+          </div>
+        </div>
+      ) : (
+        <Document
+          file={file}
+          onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={onDocumentLoadError}
+          loading={
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-600 dark:text-gray-300">Loading PDF...</p>
+            </div>
+          }
+          className="mx-auto shadow-xl"
+        >
         <div className="relative" ref={(el) => { if (el) handleResize(el.offsetWidth); }}>
           <Page 
             pageNumber={currentPage} 
@@ -84,6 +105,7 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
           })}
         </div>
       </Document>
+      )}
       
       {/* Page Navigation Controls */}
       {numPages && (
