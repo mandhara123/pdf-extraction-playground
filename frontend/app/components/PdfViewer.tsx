@@ -1,11 +1,13 @@
 // frontend/app/components/PdfViewer.tsx
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
 
 // Set up PDF.js worker with explicit version
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+}
 
 const COLOR_MAP: Record<string, string> = {
   title: 'border-red-500',
@@ -32,6 +34,20 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageWidth, setPageWidth] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  // Create object URL from file
+  useEffect(() => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setFileUrl(url);
+      
+      // Cleanup URL when component unmounts or file changes
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+  }, [file]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -41,7 +57,9 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
 
   function onDocumentLoadError(error: Error) {
     console.error('PDF load error:', error);
-    setError('Failed to load PDF file. Please ensure the file is a valid PDF.');
+    console.error('File type:', file?.type);
+    console.error('File size:', file?.size);
+    setError(`Failed to load PDF file: ${error.message}`);
   }
 
   const handleResize = useCallback((width: number) => {
@@ -49,6 +67,15 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
   }, []);
 
   const annotations = elements.filter(e => e.page === currentPage);
+
+  // Don't render if no file URL is available
+  if (!fileUrl) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-600 dark:text-gray-300">Preparing PDF...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full overflow-auto bg-gray-100 dark:bg-gray-800">
@@ -61,9 +88,13 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
         </div>
       ) : (
         <Document
-          file={file}
+          file={fileUrl}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
+          options={{
+            cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+            cMapPacked: true,
+          }}
           loading={
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-600 dark:text-gray-300">Loading PDF...</p>
@@ -72,12 +103,14 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
           className="mx-auto shadow-xl"
         >
         <div className="relative" ref={(el) => { if (el) handleResize(el.offsetWidth); }}>
-          <Page 
-            pageNumber={currentPage} 
-            renderAnnotationLayer={true} 
-            renderTextLayer={true} 
-            width={pageWidth}
-          />
+          {numPages && (
+            <Page 
+              pageNumber={currentPage} 
+              renderAnnotationLayer={true} 
+              renderTextLayer={true} 
+              width={pageWidth > 0 ? pageWidth : undefined}
+            />
+          )}
           
           {/* Custom Bounding Box Overlays */}
           {pageWidth > 0 && annotations.map((el, index) => {
