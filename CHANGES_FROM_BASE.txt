@@ -1,0 +1,43 @@
+Summary of changes made from external pdf-ML repository integration
+
+Files added or modified:
+
+- .gitignore: Added to ignore venvs, node_modules, build artifacts and env files.
+- .gitattributes: Added text normalization and binary markers.
+- frontend/.env.local.example: Example env for NEXT_PUBLIC_API_BASE_URL.
+- backend/requirements-dev.txt: Minimal backend dev requirements (fastapi, uvicorn, python-multipart, Pillow, pdfminer.six, pytesseract, pdf2image).
+- backend/simple_app.py: Enhanced local development FastAPI server with comprehensive PDF extraction capabilities:
+  - /models endpoint (list available models)
+  - /extract/{model_id} endpoint: performs extraction using pdfminer.six for born-digital PDFs; falls back to OCR using pdf2image+pytesseract when needed; returns structured JSON (markdown_output, elements, metrics) and supports ?download=true to download a .md/.zip file.
+  - /annotate/{model_id}: returns annotated PNG given elements payload (dev helper).
+  - /render/page/{page_num}: server-side render of a PDF page to PNG (fast preview thumbnails).
+- backend/annotate.py: Utility to draw bounding boxes over a blank canvas for UI testing.
+- frontend/app/components/PdfViewer.tsx: Enhanced PDF viewer with proper error handling and bounding box overlays.
+- frontend/app/components/MarkdownOutput.tsx: Added Copy and Download Markdown buttons; wired download flow to POST /extract/{model}?download=true.
+- frontend/app/page.tsx: Enhanced with improved error handling and model selection UI.
+- scripts/git_push_to_remote.ps1: PowerShell script for easy git repository setup.
+- .github/workflows/ci.yml: GitHub Actions CI workflow for automated testing.
+
+Other changes:
+- Enhanced Python packages: pytesseract, pdf2image, surya-ocr, layoutparser[ocr] (note: requires Tesseract and Poppler binaries on the system).
+- Frontend now supports environment configuration via .env.local files.
+- All components properly typed with TypeScript and error-free builds.
+
+Enhanced Features:
+- OCR fallback for scanned documents with detailed bounding boxes
+- Image extraction and embedding in markdown output
+- YAML front-matter metadata generation
+- ZIP download functionality with extracted assets
+- Responsive UI with dark mode support
+- Multiple extraction models (Surya, Docling, Custom OCR)
+
+Notes and caveats:
+- The OCR pipeline uses pytesseract.image_to_data to return detailed paragraph bounding boxes; this relies on Tesseract and Poppler being installed on the host.
+- The markdown formatting now includes YAML front-matter with filename, model, time and counts. Tables are preserved in fenced code blocks; further improvement can translate detected tables into Markdown table syntax.
+
+If you want, you can:
+- Wire the frontend to default to server-rendered PNG pages (via /render/page) for fast viewing and overlay the `elements` boxes.
+- Improve markdown table detection and conversion.
+- Add a background job queue for long OCR jobs.
+
+End of change log.
