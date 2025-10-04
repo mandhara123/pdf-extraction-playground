@@ -4,9 +4,11 @@ import { useState, useCallback, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
 
-// Set up PDF.js worker with explicit version
+// Set up PDF.js worker with fallback options
 if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+  // Try to use the same version as installed, with fallbacks
+  pdfjs.GlobalWorkerOptions.workerSrc = 
+    `https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.js`;
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -59,7 +61,18 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
     console.error('PDF load error:', error);
     console.error('File type:', file?.type);
     console.error('File size:', file?.size);
-    setError(`Failed to load PDF file: ${error.message}`);
+    console.error('Worker src:', pdfjs.GlobalWorkerOptions.workerSrc);
+    
+    let errorMessage = `Failed to load PDF file: ${error.message}`;
+    
+    // Provide more helpful error messages for common issues
+    if (error.message.includes('Worker') || error.message.includes('worker')) {
+      errorMessage = 'PDF worker failed to load. Please check your internet connection and try again.';
+    } else if (error.message.includes('Invalid') || error.message.includes('corrupted')) {
+      errorMessage = 'The PDF file appears to be corrupted or invalid.';
+    }
+    
+    setError(errorMessage);
   }
 
   const handleResize = useCallback((width: number) => {
@@ -91,10 +104,6 @@ export const PdfViewer = ({ file, elements, currentPage, onPageChange }: PdfView
           file={fileUrl}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
-          options={{
-            cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-            cMapPacked: true,
-          }}
           loading={
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-600 dark:text-gray-300">Loading PDF...</p>

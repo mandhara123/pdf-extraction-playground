@@ -4,12 +4,12 @@
   "private": true,
   "dependencies": {
     "next": "15.5.4",
-    "pdfjs-dist": "^5.4.149",
+    "pdfjs-dist": "^4.8.69",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-dropzone": "^14.3.8",
     "react-markdown": "^10.1.0",
-    "react-pdf": "^10.1.0",
+    "react-pdf": "^9.1.1",
     "react-syntax-highlighter": "^15.6.6"
   },
   "devDependencies": {
