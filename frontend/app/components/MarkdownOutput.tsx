@@ -1,14 +1,5 @@
-// frontend/app/components/MarkdownOutput.tsx
-import React from "react";
+import React, { ReactNode, HTMLAttributes, CSSProperties } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
-// Define CodeProps inline since react-markdown does not export it
-type CodeProps = {
-  node?: any;
-  inline?: boolean;
-  className?: string;
-  children?: React.ReactNode;
-  [key: string]: any;
-};
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -19,20 +10,39 @@ interface MarkdownOutputProps {
   markdown: string;
 }
 
+// 💡 FIX: Make 'children' optional in the custom interface.
+// The prop object passed by ReactMarkdown to the custom component often
+// has `children` as optional, which causes the incompatibility.
+interface CustomCodeProps {
+  inline?: boolean;
+  className?: string;
+  children?: ReactNode; // Changed from required to optional
+  node?: any; // Required by ReactMarkdown's internal types
+}
+
 const MarkdownOutput: React.FC<MarkdownOutputProps> = ({ markdown }) => {
+  
   const components: Components = {
-    code: ({ inline, className, children, ...props }: CodeProps) => {
+    // We now use CustomCodeProps with optional children, resolving the error.
+    code: ({ inline, className, children, ...props }: CustomCodeProps) => {
       const match = /language-(\w+)/.exec(className || "");
+
+      // Ensure children exists before attempting String() conversion
+      const codeString = children ? String(children).replace(/\n$/, "") : "";
+
       return !inline && match ? (
         <SyntaxHighlighter
-          style={oneDark}
+          // Cast the theme object to satisfy the react-syntax-highlighter type
+          // CSSProperties is imported above for clarity in this specific type
+          style={oneDark as { [key: string]: CSSProperties }}
           language={match[1]}
           PreTag="div"
           {...props}
         >
-          {String(children).replace(/\n$/, "")}
+          {codeString}
         </SyntaxHighlighter>
       ) : (
+        // For inline code blocks
         <code className={className} {...props}>
           {children}
         </code>
