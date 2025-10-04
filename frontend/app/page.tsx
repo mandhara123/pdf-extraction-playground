@@ -15,8 +15,7 @@ interface Element {
     page: number; 
     confidence: number;
 }
-// Dummy types based on backend schema
-interface Element { type: string; bbox: number[]; page: number; }
+
 interface ExtractionResult {
     markdown_output: string;
     elements: Element[];
@@ -132,7 +131,7 @@ export default function Home() {
 
         {/* Right Pane: Extracted Markdown */}
         <div className="w-1/2 h-full">
-          <MarkdownOutput markdown={results.markdown_output} />
+          <MarkdownOutput markdown={results.markdown_output} file={file} modelId={modelId} />
 
         </div>
       </main>

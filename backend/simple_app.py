@@ -1,0 +1,389 @@
+"""Lightweight local FastAPI app for development/testing.
+This file avoids heavy optional dependencies (modal, torch, layoutparser).
+It exposes the same endpoints as the main `modal_app.py` but with simple, deterministic outputs.
+"""
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any
+import io
+import time
+import base64
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LTTextContainer, LTFigure, LTImage
+import zipfile
+import uuid
+try:
+    import pytesseract
+    from pytesseract import Output as PTOutput
+    from pdf2image import convert_from_bytes
+    OCR_AVAILABLE = True
+except Exception:
+    OCR_AVAILABLE = False
+
+app = FastAPI(title="PDF Extraction Playground (dev)")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class Element(BaseModel):
+    type: str
+    text: str
+    page: int
+    bbox: List[int] = Field(description="[x_min, y_min, x_max, y_max] normalized to 0-1000")
+    confidence: float
+
+class ExtractedData(BaseModel):
+    markdown_output: str
+    elements: List[Element]
+    metrics: Dict[str, Any]
+
+
+@app.get("/models")
+async def list_models():
+    return [
+        {"id": "surya", "name": "Surya", "description": "Mock Surya"},
+        {"id": "docling", "name": "Docling", "description": "Mock Docling"},
+        {"id": "custom-ocr", "name": "Custom OCR", "description": "Mock OCR"}
+    ]
+
+@app.post("/extract/{model_id}", response_model=ExtractedData)
+async def extract_pdf(model_id: str, file: UploadFile = File(...), download: bool = False):
+    if file.content_type != 'application/pdf':
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+
+    file_bytes = await file.read()
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+    # Try to extract using pdfminer.six for born-digital PDFs
+    try:
+        markdown_parts = []
+        elements = []
+        page_num = 0
+        total_words = 0
+
+        with io.BytesIO(file_bytes) as fp:
+            for page_layout in extract_pages(fp):
+                page_num += 1
+                page_height = page_layout.height
+                page_width = page_layout.width
+
+                for element in page_layout:
+                    if isinstance(element, LTTextContainer):
+                        text = element.get_text().strip()
+                        if not text:
+                            continue
+
+                        # Normalize bbox to 0-1000 scale (top-left origin)
+                        x0, y0, x1, y1 = element.bbox
+                        y_min_norm = int(1000 * (1 - y1 / page_height))
+                        y_max_norm = int(1000 * (1 - y0 / page_height))
+                        x_min_norm = int(1000 * x0 / page_width)
+                        x_max_norm = int(1000 * x1 / page_width)
+                        bbox = [x_min_norm, y_min_norm, x_max_norm, y_max_norm]
+
+                        markdown_parts.append(text + "\n\n")
+                        total_words += len(text.split())
+
+                        element_type = "paragraph"
+                        if bbox[1] < 100:
+                            element_type = "header"
+                        if len(text) < 60 and bbox[1] < 150:
+                            element_type = "title"
+
+                        elements.append({
+                            "type": element_type,
+                            "text": text,
+                            "page": page_num,
+                            "bbox": bbox,
+                            "confidence": 0.9,
+                        })
+
+                    elif isinstance(element, (LTFigure, LTImage)):
+                        # Represent figures/images as placeholders
+                        x0, y0, x1, y1 = getattr(element, 'bbox', (0, 0, 0, 0))
+                        bbox = [0, 0, 1000, 1000]
+                        elements.append({
+                            "type": "figure",
+                            "text": f"[Figure on page {page_num}]",
+                            "page": page_num,
+                            "bbox": bbox,
+                            "confidence": 0.85,
+                        })
+
+        if markdown_parts:
+            # If there are figure elements, try to render and embed them as base64 images
+            try:
+                fig_elements = [el for el in elements if el.get('type') in ('figure', 'image')]
+                if fig_elements:
+                    pages_imgs = convert_from_bytes(file_bytes, dpi=200)
+                    for idx, el in enumerate(fig_elements):
+                        p = el.get('page', 1)
+                        if p <= 0 or p > len(pages_imgs):
+                            continue
+                        img = pages_imgs[p-1]
+                        w, h = img.size
+                        bbox = el.get('bbox', [0,0,1000,1000])
+                        x0 = max(0, int(bbox[0] * w / 1000))
+                        y0 = max(0, int(bbox[1] * h / 1000))
+                        x1 = min(w, int(bbox[2] * w / 1000))
+                        y1 = min(h, int(bbox[3] * h / 1000))
+                        if x1 <= x0 or y1 <= y0:
+                            continue
+                        try:
+                            crop = img.crop((x0, y0, x1, y1))
+                            buf = io.BytesIO()
+                            crop.save(buf, format='PNG')
+                            img_bytes = buf.getvalue()
+                            # keep a small in-memory copy for packaging into zip later
+                            fname = f"figure_p{p}_{idx}_{uuid.uuid4().hex[:8]}.png"
+                            el['image_bytes'] = img_bytes
+                            el['image_filename'] = fname
+                            # keep a data-uri for API clients that expect it
+                            el['image'] = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('ascii')}"
+                        except Exception:
+                            continue
+            except Exception:
+                # ignore image extraction failures
+                pass
+            # Build cleaner Markdown from structured elements (grouped by page)
+            time_s = 0.05
+            yaml_meta = f"---\nfilename: '{file.filename}'\nmodel: '{model_id}'\ntime_s: {time_s}\nelements: {len(elements)}\nword_count: {total_words}\n---\n\n"
+
+            md_parts = []
+            # Group elements by page and sort top->bottom, left->right
+            by_page: Dict[int, List[Dict]] = {}
+            for el in elements:
+                by_page.setdefault(el['page'], []).append(el)
+
+            for p in sorted(by_page.keys()):
+                md_parts.append(f"## Page {p}\n\n")
+                items = sorted(by_page[p], key=lambda e: (e['bbox'][1], e['bbox'][0]))
+                for el in items:
+                    # If an image was extracted for this element, embed it inline in the Markdown.
+                    if el.get('image'):
+                        caption = el.get('text', f"Figure on page {p}").strip() or f"Figure on page {p}"
+                        md_parts.append(f"![{caption}]({el['image']})\n\n")
+                        if caption and caption.lower().find('figure') == -1:
+                            md_parts.append(f"*{caption}*\n\n")
+                    else:
+                        text = el.get('text', '').strip()
+                        if not text:
+                            continue
+                        # If this looks like a table or code, wrap it
+                        if text.count('\n') > 2 or text.count('\t') > 1 or '|' in text:
+                            md_parts.append('```\n' + text + '\n```\n\n')
+                        else:
+                            md_parts.append(text + '\n\n')
+
+            markdown = yaml_meta + ''.join(md_parts).rstrip() + '\n'
+            metrics = {"time_s": time_s, "elements_count": len(elements), "word_count": total_words}
+            if download:
+                # If images were captured as bytes, package markdown + images into a zip
+                imgs = [el for el in elements if el.get('image_bytes')]
+                safe_name = (file.filename or model_id).replace(' ', '_')
+                if imgs:
+                    zip_buf = io.BytesIO()
+                    with zipfile.ZipFile(zip_buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+                        # add markdown
+                        zf.writestr('extracted.md', markdown)
+                        # add images under images/
+                        for el in imgs:
+                            fname = el.get('image_filename') or f"image_{uuid.uuid4().hex[:8]}.png"
+                            zf.writestr(f'images/{fname}', el.get('image_bytes'))
+                    zip_buf.seek(0)
+                    headers = {"Content-Disposition": f'attachment; filename="{safe_name}.zip"'}
+                    return StreamingResponse(zip_buf, media_type='application/zip', headers=headers)
+                else:
+                    md_bytes = markdown.encode('utf-8')
+                    headers = {"Content-Disposition": f'attachment; filename="{safe_name}.md"'}
+                    return StreamingResponse(io.BytesIO(md_bytes), media_type='text/markdown', headers=headers)
+            return {"markdown_output": markdown, "elements": elements, "metrics": metrics}
+        # If no text extracted and OCR is available, run OCR fallback with detailed boxes
+        if not markdown_parts and OCR_AVAILABLE:
+            try:
+                start_ocr = time.time()
+                images = convert_from_bytes(file_bytes, dpi=200)
+                ocr_text_parts = []
+                ocr_elements = []
+                page_no = 0
+                total_words_ocr = 0
+
+                for img in images:
+                    page_no += 1
+                    # Use pytesseract to get detailed data
+                    data = pytesseract.image_to_data(img, output_type=PTOutput.DICT)
+                    n_boxes = len(data.get('text', []))
+                    # Group words into paragraphs by block_num + par_num
+                    groups = {}
+                    for i in range(n_boxes):
+                        text = (data.get('text', [''])[i] or '').strip()
+                        if not text:
+                            continue
+                        block = data.get('block_num', [0])[i]
+                        par = data.get('par_num', [0])[i]
+                        key = (block, par)
+                        left = int(data.get('left', [0])[i])
+                        top = int(data.get('top', [0])[i])
+                        width = int(data.get('width', [0])[i])
+                        height = int(data.get('height', [0])[i])
+                        conf = float(data.get('conf', ['-1'])[i]) if data.get('conf', [None])[i] is not None else -1
+                        if key not in groups:
+                            groups[key] = { 'words': [], 'lefts': [], 'tops': [], 'rights': [], 'bottoms': [], 'confs': [] }
+                        groups[key]['words'].append(text)
+                        groups[key]['lefts'].append(left)
+                        groups[key]['tops'].append(top)
+                        groups[key]['rights'].append(left + width)
+                        groups[key]['bottoms'].append(top + height)
+                        if conf >= 0:
+                            groups[key]['confs'].append(conf)
+
+                    # Convert groups into paragraph elements
+                    img_w, img_h = img.size
+                    for key, info in groups.items():
+                        if not info['words']:
+                            continue
+                        paragraph_text = ' '.join(info['words'])
+                        total_words_ocr += len(paragraph_text.split())
+
+                        # Bounding box for the paragraph (min of lefts/tops, max of rights/bottoms)
+                        x_min = min(info['lefts'])
+                        y_min = min(info['tops'])
+                        x_max = max(info['rights'])
+                        y_max = max(info['bottoms'])
+
+                        # Normalize to 0-1000 scale
+                        bbox = [
+                            int(1000 * x_min / img_w),
+                            int(1000 * y_min / img_h),
+                            int(1000 * x_max / img_w),
+                            int(1000 * y_max / img_h)
+                        ]
+                        conf_avg = (sum(info['confs']) / len(info['confs'])) if info['confs'] else 70.0
+                        # Build element dict and attempt to crop the paragraph region from the page image
+                        el = {
+                            'type': 'paragraph',
+                            'text': paragraph_text,
+                            'page': page_no,
+                            'bbox': bbox,
+                            'confidence': round(conf_avg / 100.0, 2),
+                        }
+                        try:
+                            # Pixel coordinates for cropping
+                            x0px = max(0, int(x_min))
+                            y0px = max(0, int(y_min))
+                            x1px = min(img_w, int(x_max))
+                            y1px = min(img_h, int(y_max))
+                            if x1px > x0px and y1px > y0px:
+                                crop = img.crop((x0px, y0px, x1px, y1px))
+                                buf = io.BytesIO()
+                                crop.save(buf, format='PNG')
+                                data = base64.b64encode(buf.getvalue()).decode('ascii')
+                                el['image'] = f"data:image/png;base64,{data}"
+                        except Exception:
+                            # Non-fatal: if cropping fails, continue without an image
+                            pass
+
+                        ocr_elements.append(el)
+                        ocr_text_parts.append(paragraph_text + "\n\n")
+
+                if ocr_text_parts:
+                    time_s = round(time.time() - start_ocr, 2)
+                    # Build YAML front-matter
+                    yaml_meta = f"---\nfilename: '{file.filename}'\nmodel: '{model_id}'\ntime_s: {time_s}\nelements: {len(ocr_elements)}\nword_count: {total_words_ocr}\n---\n\n"
+
+                    md_parts = []
+                    for el in ocr_elements:
+                        # If an image is attached to this OCR element, embed it first
+                        if el.get('image_filename'):
+                            caption = el.get('text', f"Figure on page {el.get('page', '?')}").strip() or f"Figure on page {el.get('page', '?')}"
+                            # reference the image by filename (images/...) — a ZIP download will include these files
+                            md_parts.append(f"![{caption}](images/{el['image_filename']})\n\n")
+                            if caption and caption.lower().find('figure') == -1:
+                                md_parts.append(f"*{caption}*\n\n")
+                        else:
+                            text_str = el.get('text', '').strip()
+                            if text_str:
+                                md_parts.append(text_str + "\n\n")
+
+                    markdown = yaml_meta + ''.join(md_parts).rstrip() + '\n'
+                    metrics = {"time_s": time_s, "elements_count": len(ocr_elements), "word_count": total_words_ocr}
+                    if download:
+                        # Package OCR elements with their cropped images, if available, into zip
+                        imgs = [el for el in ocr_elements if el.get('image_bytes')]
+                        safe_name = (file.filename or model_id).replace(' ', '_')
+                        if imgs:
+                            zip_buf = io.BytesIO()
+                            with zipfile.ZipFile(zip_buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+                                zf.writestr('extracted.md', markdown)
+                                for el in imgs:
+                                    fname = el.get('image_filename') or f"image_{uuid.uuid4().hex[:8]}.png"
+                                    zf.writestr(f'images/{fname}', el.get('image_bytes'))
+                            zip_buf.seek(0)
+                            headers = {"Content-Disposition": f'attachment; filename="{safe_name}_ocr.zip"'}
+                            return StreamingResponse(zip_buf, media_type='application/zip', headers=headers)
+                        else:
+                            md_bytes = markdown.encode('utf-8')
+                            headers = {"Content-Disposition": f'attachment; filename="{safe_name}_ocr.md"'}
+                            return StreamingResponse(io.BytesIO(md_bytes), media_type='text/markdown', headers=headers)
+                    return {"markdown_output": markdown, "elements": ocr_elements, "metrics": metrics}
+            except Exception as e:
+                print(f"OCR fallback error: {e}")
+        
+    except Exception as e:
+        # Fall back to mock extraction if pdfminer fails
+        print(f"pdfminer extraction error: {e}")
+
+    # Fallback deterministic mock response
+    markdown = f"# Mock extraction for {model_id}\n\nFile name: {file.filename}\n\nThis is a lightweight local extraction result."
+    elements = [
+        {"type": "title", "text": "Mock Title", "page": 1, "bbox": [50, 50, 950, 120], "confidence": 0.99},
+        {"type": "paragraph", "text": "This is mock paragraph text.", "page": 1, "bbox": [50, 130, 950, 300], "confidence": 0.9},
+    ]
+    metrics = {"time_s": 0.01, "elements_count": len(elements), "word_count": 20}
+    return {"markdown_output": markdown, "elements": elements, "metrics": metrics}
+
+@app.post("/annotate/{model_id}")
+async def annotate_image(model_id: str, elements: List[Dict] = None):
+    """Return a PNG image (bytes) with bounding boxes drawn for provided elements.
+    This endpoint is for local dev UI testing and expects 'elements' as JSON body.
+    """
+    from fastapi.responses import Response
+    from .annotate import draw_annotations
+
+    if elements is None:
+        return Response(content=b"", media_type="image/png", status_code=400)
+
+    try:
+        png_bytes = draw_annotations(elements)
+        return Response(content=png_bytes, media_type="image/png")
+    except Exception as e:
+        return Response(content=b"", media_type="image/png", status_code=500)
+
+@app.post('/render/page/{page_num}')
+async def render_page_image(page_num: int, file: UploadFile = File(...)):
+    """Render a single PDF page to PNG and return it. page_num is 1-based."""
+    if file.content_type != 'application/pdf':
+        raise HTTPException(status_code=400, detail='Only PDF files are supported.')
+
+    file_bytes = await file.read()
+    try:
+        images = convert_from_bytes(file_bytes, dpi=150)
+        if page_num < 1 or page_num > len(images):
+            raise HTTPException(status_code=400, detail='Page number out of range')
+
+        img = images[page_num - 1]
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return StreamingResponse(buf, media_type='image/png')
+    except Exception as e:
+        print(f'Error rendering page {page_num}: {e}')
+        raise HTTPException(status_code=500, detail='Failed to render page')

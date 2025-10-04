@@ -1,8 +1,11 @@
+fastapi
 uvicorn
-modal-client
 python-multipart
 Pillow
+pdfminer.six
+pytesseract
+pdf2image
+modal-client
 surya
 docling
 layoutparser
-fastapi
